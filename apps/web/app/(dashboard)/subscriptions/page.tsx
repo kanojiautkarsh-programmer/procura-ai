@@ -1,145 +1,115 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useUser } from '@clerk/nextjs';
 import { api } from '@/lib/api';
-import {
-  Card, CardContent, CardHeader, CardTitle,
-  Button, Badge, Input, Select,
-  SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@procura/ui';
-import { Plus, CreditCard, Search } from 'lucide-react';
+import { Card, CardContent, Button, Badge, Input } from '@procura/ui';
+import { cn } from '@procura/ui';
+import { CreditCard, Search, Plus, MoreHorizontal, TrendingUp, Users, Loader2 } from 'lucide-react';
 
-const statusVariant: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
-  active: 'success',
-  trial: 'default',
-  expired: 'warning',
-  cancelled: 'destructive',
-  pending: 'secondary',
+const statusStyles: Record<string, string> = {
+  active: 'bg-emerald-50 text-emerald-700',
+  trial: 'bg-blue-50 text-blue-700',
+  expired: 'bg-amber-50 text-amber-700',
+  cancelled: 'bg-red-50 text-red-700',
+  pending: 'bg-slate-50 text-slate-600',
 };
 
-const billingLabels: Record<string, string> = {
-  monthly: '/mo',
-  quarterly: '/qtr',
-  semi_annual: '/6mo',
-  annual: '/yr',
-  one_time: 'one-time',
+const periodLabels: Record<string, string> = { monthly: '/mo', quarterly: '/qtr', semi_annual: '/6mo', annual: '/yr', one_time: '' };
+
+const Sparkline = ({ data }: { data: number[] }) => {
+  if (!data?.length) return null;
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const w = 60; const h = 24;
+  const px = (i: number) => (i / (data.length - 1)) * w;
+  const py = (v: number) => h - ((v - min) / range) * h;
+  const d = data.map((v, i) => `${i === 0 ? 'M' : 'L'}${px(i)},${py(v)}`).join(' ');
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="shrink-0">
+      <path d={d} fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 };
 
 export default function SubscriptionsPage() {
+  const { user } = useUser();
+  const orgId = user?.organizationMemberships?.[0]?.id || null;
   const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['subscriptions', filterStatus],
-    queryFn: () => api.get<any>('/spend/summary', { organizationId: 'org_demo' }),
+    queryKey: ['subscriptions', orgId],
+    queryFn: () => api.get('/subscriptions', { organizationId: orgId || '', limit: 50 }),
+    enabled: !!orgId,
   });
 
-  const subscriptions = data?.subscriptions ?? [];
+  const subscriptions = Array.isArray(data?.data) ? data.data : [];
 
-  const filtered = subscriptions.filter((s: any) => {
-    if (filterStatus !== 'all' && s.status !== filterStatus) return false;
-    if (search && !s.name.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  const filtered = subscriptions.filter(
+    (s: any) => s.name.toLowerCase().includes(search.toLowerCase()) || s.vendor?.name?.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const activeTotal = subscriptions.filter((s: any) => s.status === 'active').reduce((a: number, s: any) => a + s.amount, 0);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Subscriptions</h1>
-          <p className="text-muted-foreground">All your software subscriptions in one place.</p>
+          <h1 className="text-[28px] font-bold tracking-tight text-slate-900">Subscriptions</h1>
+          <p className="mt-0.5 text-sm text-slate-500">{subscriptions.length} subscriptions · ${activeTotal.toLocaleString()}/mo</p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Subscription
+        <Button size="sm" className="gap-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700">
+          <Plus className="h-3.5 w-3.5" /> Add Subscription
         </Button>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search subscriptions..."
-            className="pl-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="trial">Trial</SelectItem>
-            <SelectItem value="expired">Expired</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="relative max-w-xs">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <Input placeholder="Search subscriptions..." className="h-9 rounded-lg border-slate-200 pl-9 text-sm" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
       {isLoading ? (
-        <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-          Loading subscriptions...
-        </div>
-      ) : filtered.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <CreditCard className="mb-4 h-12 w-12 text-muted-foreground/50" />
-            <h3 className="mb-1 text-lg font-medium">No subscriptions tracked</h3>
-            <p className="mb-4 text-sm text-muted-foreground">
-              Add your first subscription to start monitoring spend.
-            </p>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Subscription
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-slate-300" /></div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((sub: any) => (
-            <Card key={sub.id} className="transition-colors hover:bg-muted/50">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-base">{sub.name}</CardTitle>
-                    <p className="text-sm text-muted-foreground">{sub.vendorName || 'Unknown vendor'}</p>
+            <div key={sub.id} className="card-hover rounded-xl border border-slate-200 bg-white p-5 transition-all duration-150">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-sm font-bold text-slate-600">
+                    {sub.name[0]}
                   </div>
-                  <Badge variant={statusVariant[sub.status] || 'secondary'}>
-                    {sub.status}
-                  </Badge>
+                  <div>
+                    <p className="font-semibold text-slate-900">{sub.name}</p>
+                    <p className="text-xs text-slate-400">{sub.vendor?.name}</p>
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-3">
-                  <span className="text-2xl font-bold">${sub.amount?.toLocaleString()}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {billingLabels[sub.billingPeriod] || ''}
-                  </span>
+                <Badge className={cn('rounded-full px-2.5 py-0.5 text-[10px] font-medium capitalize', statusStyles[sub.status])}>
+                  {sub.status}
+                </Badge>
+              </div>
+
+              <div className="mt-4 flex items-end justify-between">
+                <div>
+                  <div className="flex items-baseline gap-0.5">
+                    <span className="text-2xl font-bold text-slate-900">${sub.amount.toLocaleString()}</span>
+                    <span className="text-xs text-slate-400">{periodLabels[sub.billingPeriod]}</span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-3 text-xs text-slate-400">
+                    <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {sub.licenseCount} seats</span>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                  {sub.department && (
-                    <Badge variant="outline" className="text-xs">
-                      {sub.department}
-                    </Badge>
-                  )}
-                  {sub.category && (
-                    <Badge variant="outline" className="text-xs">
-                      {sub.category}
-                    </Badge>
-                  )}
-                  {sub.licenseCount > 0 && (
-                    <span>{sub.allocatedLicenses}/{sub.licenseCount} licenses</span>
-                  )}
-                  {sub.renewalDate && (
-                    <span>Renews {new Date(sub.renewalDate).toLocaleDateString()}</span>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+                <span className="text-xs text-slate-400">
+                  {sub.renewalDate ? `Renews ${new Date(sub.renewalDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'No renewal date'}
+                </span>
+              </div>
+            </div>
           ))}
         </div>
       )}

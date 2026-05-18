@@ -17,6 +17,7 @@ class QueryRequest(BaseModel):
     query: str
     organization_id: str
     top_k: int = 5
+    api_key: str | None = None
 
 
 @router.post("/ingest")
@@ -47,6 +48,7 @@ async def ask(req: QueryRequest):
         query=req.query,
         organization_id=req.organization_id,
         top_k=req.top_k,
+        api_key=req.api_key,
     )
     return {"answer": answer}
 
@@ -58,5 +60,6 @@ async def categorize_with_policy(req: QueryRequest):
         query=req.query,
         organization_id=req.organization_id,
         top_k=req.top_k,
+        api_key=req.api_key,
     )
     return {"answer": answer}

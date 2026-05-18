@@ -9,9 +9,9 @@ from app.core.database import get_db
 logger = logging.getLogger(__name__)
 
 
-def _get_embedding(text: str) -> list[float]:
+def _get_embedding(text: str, api_key: str | None = None) -> list[float]:
     """Generate embedding vector for text."""
-    emb = get_embeddings()
+    emb = get_embeddings(api_key=api_key)
     vector = emb.embed_query(text)
     return vector
 
@@ -59,6 +59,7 @@ async def query_documents(
     query: str,
     organization_id: str,
     top_k: int = 5,
+    api_key: str | None = None,
 ) -> list[dict]:
     """Search for relevant document chunks using vector similarity."""
     embedding = _get_embedding(query)
@@ -95,12 +96,13 @@ async def generate_procurement_answer(
     query: str,
     organization_id: str,
     top_k: int = 5,
+    api_key: str | None = None,
 ) -> str:
     """Generate an answer using RAG: retrieve context + LLM generation."""
-    docs = await query_documents(query, organization_id, top_k)
+    docs = await query_documents(query, organization_id, top_k, api_key=api_key)
 
     if not docs:
-        llm = get_llm()
+        llm = get_llm(api_key=api_key)
         prompt = f"""You are a procurement assistant. Answer this question based on general knowledge:
 
 Question: {query}
@@ -114,7 +116,7 @@ If you don't know, say so. Keep answers concise and actionable."""
         for d in docs
     )
 
-    llm = get_llm()
+    llm = get_llm(api_key=api_key)
     prompt = f"""You are a procurement AI assistant. Answer the question using ONLY the provided context.
 
 Context:

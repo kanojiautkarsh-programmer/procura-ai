@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
 @Injectable()
@@ -34,29 +34,69 @@ export class InvoicesService {
     };
   }
 
-  async findOne(id: string) {
-    const invoice = await this.prisma.invoice.findUnique({
-      where: { id },
+  async findOne(id: string, organizationId?: string) {
+    const where: Record<string, string> = { id };
+    if (organizationId) where.organizationId = organizationId;
+
+    const invoice = await this.prisma.invoice.findFirst({
+      where,
       include: { vendor: true, createdBy: true },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
     return invoice;
   }
 
-  async create(data: unknown) {
-    return this.prisma.invoice.create({ data: data as any });
-  }
-
-  async update(id: string, data: unknown) {
-    await this.findOne(id);
-    return this.prisma.invoice.update({
-      where: { id },
-      data: data as any,
+  async create(data: {
+    vendorId: string;
+    amount: number;
+    issueDate: Date;
+    dueDate: Date;
+    organizationId: string;
+    createdById: string;
+    invoiceNumber?: string;
+    taxAmount?: number;
+    currency?: string;
+    status?: string;
+    paidDate?: Date;
+    category?: string;
+    description?: string;
+    fileUrl?: string;
+  }) {
+    return this.prisma.invoice.create({
+      data: {
+        vendorId: data.vendorId,
+        amount: data.amount,
+        issueDate: new Date(data.issueDate),
+        dueDate: new Date(data.dueDate),
+        organizationId: data.organizationId,
+        createdById: data.createdById,
+        invoiceNumber: data.invoiceNumber,
+        taxAmount: data.taxAmount ?? 0,
+        currency: data.currency ?? 'USD',
+        status: (data.status as any) ?? 'pending',
+        paidDate: data.paidDate ? new Date(data.paidDate) : undefined,
+        category: data.category,
+        description: data.description,
+        fileUrl: data.fileUrl,
+      },
     });
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async update(id: string, data: Record<string, unknown>, organizationId?: string) {
+    await this.findOne(id, organizationId);
+    return this.prisma.invoice.update({
+      where: { id },
+      data: {
+        ...data,
+        // Prevent org/creator changes
+        organizationId: undefined,
+        createdById: undefined,
+      },
+    });
+  }
+
+  async remove(id: string, organizationId?: string) {
+    await this.findOne(id, organizationId);
     return this.prisma.invoice.delete({ where: { id } });
   }
 }

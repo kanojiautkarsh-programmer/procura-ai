@@ -1,0 +1,55 @@
+# Render Blueprint — deploys NestJS API + Python AI service
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: procura-api
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install && npx prisma generate --schema=packages/database/prisma/schema.prisma && npm run build --filter=@procura/api
+    startCommand: node apps/api/dist/main.js
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "4000"
+      - key: DATABASE_URL
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_WEBHOOK_SECRET
+        sync: false
+      - key: BYOK_ENCRYPTION_KEY
+        sync: false
+      - key: INTERNAL_API_TOKEN
+        sync: false
+      - key: FRONTEND_URL
+        value: https://procura-ai.pages.dev
+      - key: CLERK_ISSUER
+        value: your-clerk-domain.clerk.accounts.dev
+
+  - type: web
+    name: procura-ai-service
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r apps/ai-service/requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port 10000
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: FRONTEND_URL
+        value: https://procura-ai.pages.dev
+      - key: API_KEY
+        sync: false
+      - key: INTERNAL_API_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false

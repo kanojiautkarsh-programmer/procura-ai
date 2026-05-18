@@ -1,20 +1,34 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { ByokService } from '../byok/byok.service';
 
 @Injectable()
 export class AssistantService {
   private readonly logger = new Logger(AssistantService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly byok: ByokService,
+  ) {}
 
   async ask(query: string, organizationId: string): Promise<string> {
+    // Get BYOK key if available
+    const apiKey = await this.byok.getDefaultKey(organizationId);
+
     // Try AI service RAG first
     try {
       const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const body: Record<string, any> = { query, organization_id: organizationId, top_k: 5 };
+
+      if (apiKey) {
+        body.api_key = apiKey;
+      }
+
       const response = await fetch(`${aiServiceUrl}/api/v1/rag/ask`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, organization_id: organizationId, top_k: 5 }),
+        headers,
+        body: JSON.stringify(body),
       });
 
       if (response.ok) {
@@ -98,6 +112,10 @@ export class AssistantService {
       return `You have ${vendors.length} vendor(s):\n${lines.join('\n')}`;
     }
 
-    return `I understand you're asking about "${query}". For the most accurate answer, please make sure the AI service is running with an OpenAI API key configured. In the meantime, you can ask about subscriptions, approvals, spend, or vendors.`;
+    if (q.includes('negotiate') || q.includes('negotiation') || q.includes('vendor tips') || q.includes('benchmark')) {
+      return `I can help with vendor negotiation strategies. Please provide a vendor name, or visit the Vendors page to see negotiation suggestions for each vendor. You can also ask the AI service directly for detailed industry benchmarks.`;
+    }
+
+    return `I understand you're asking about "${query}". For the most accurate answer, please make sure the AI service is running with an OpenAI API key configured. In the meantime, you can ask about subscriptions, approvals, spend, vendors, or negotiation tips.`;
   }
 }

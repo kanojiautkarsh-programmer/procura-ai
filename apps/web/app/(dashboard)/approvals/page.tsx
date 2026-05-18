@@ -2,150 +2,127 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useUser } from '@clerk/nextjs';
 import { api } from '@/lib/api';
-import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Tabs, TabsList, TabsTrigger, TabsContent } from '@procura/ui';
-import { Plus, Check, X, Clock, AlertTriangle } from 'lucide-react';
+import { Button, Badge } from '@procura/ui';
+import { cn } from '@procura/ui';
+import { Check, X, Clock, AlertTriangle, Plus, User, DollarSign, CheckSquare, Loader2 } from 'lucide-react';
 import { NewApprovalDialog } from './_components/new-approval-dialog';
 
-const statusVariant: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
-  pending: 'warning',
-  approved: 'success',
-  rejected: 'destructive',
-  escalated: 'default',
-};
-
-const statusIcon: Record<string, typeof Clock> = {
-  pending: Clock,
-  approved: Check,
-  rejected: X,
-  escalated: AlertTriangle,
+const statusStyles: Record<string, string> = {
+  pending: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+  approved: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+  rejected: 'bg-red-50 text-red-700 ring-red-600/20',
+  escalated: 'bg-purple-50 text-purple-700 ring-purple-600/20',
 };
 
 export default function ApprovalsPage() {
-  const [newOpen, setNewOpen] = useState(false);
-  const [tab, setTab] = useState('pending');
+  const { user } = useUser();
+  const orgId = user?.organizationMemberships?.[0]?.id || null;
+  const userId = user?.id;
+  const [tab, setTab] = useState<'pending' | 'history'>('pending');
+  const [dialogOpen, setDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['approvals', tab],
-    queryFn: () => api.get<any>('/approvals', { organizationId: 'org_demo', status: tab === 'all' ? undefined : tab, limit: 50 }),
+    queryKey: ['approvals', orgId],
+    queryFn: () => api.get('/approvals', { organizationId: orgId || '', limit: 50 }),
+    enabled: !!orgId,
   });
 
-  const approveMutation = useMutation({
-    mutationFn: (id: string) => api.patch(`/approvals/${id}/action`, { status: 'approved' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['approvals'] }),
-  });
+  const approvalsList: any[] = Array.isArray(data?.data) ? data.data : [];
+  const pending = approvalsList.filter((a: any) => a.status === 'pending');
+  const history = approvalsList.filter((a: any) => a.status !== 'pending');
 
-  const rejectMutation = useMutation({
-    mutationFn: (id: string) => api.patch(`/approvals/${id}/action`, { status: 'rejected' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['approvals'] }),
+  const actionMutation = useMutation({
+    mutationFn: ({ id, action, notes }: { id: string; action: string; notes?: string }) =>
+      api.patch(`/approvals/${id}/action`, { action, notes, organizationId: orgId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['spend-summary'] });
+    },
   });
-
-  const requests = data?.data ?? [];
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Approvals</h1>
-          <p className="text-muted-foreground">Review and manage procurement approval requests.</p>
+          <h1 className="text-[28px] font-bold tracking-tight text-slate-900">Approvals</h1>
+          <p className="mt-0.5 text-sm text-slate-500">{pending.length} requests awaiting your decision.</p>
         </div>
-        <Button onClick={() => setNewOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Request
+        <Button size="sm" className="gap-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700" onClick={() => setDialogOpen(true)}>
+          <Plus className="h-3.5 w-3.5" /> New Request
         </Button>
       </div>
 
-      <Card>
-        <CardHeader className="pb-0">
-          <Tabs value={tab} onValueChange={setTab}>
-            <TabsList>
-              <TabsTrigger value="pending">Pending</TabsTrigger>
-              <TabsTrigger value="approved">Approved</TabsTrigger>
-              <TabsTrigger value="rejected">Rejected</TabsTrigger>
-              <TabsTrigger value="all">All</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </CardHeader>
-        <CardContent className="pt-4">
-          {isLoading ? (
-            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-              Loading requests...
-            </div>
-          ) : requests.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Check className="mb-4 h-12 w-12 text-muted-foreground/50" />
-              <h3 className="mb-1 text-lg font-medium">No {tab} requests</h3>
-              <p className="text-sm text-muted-foreground">
-                {tab === 'pending' ? 'No pending approvals. Everything is up to date.' : 'No requests in this category.'}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {requests.map((req: any) => {
-                const StatusIcon = statusIcon[req.status] || Clock;
-                return (
-                  <div key={req.id} className="rounded-lg border p-4 transition-colors hover:bg-muted/50">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-medium">{req.title}</h4>
-                          <Badge variant={statusVariant[req.status]} className="capitalize">
-                            <StatusIcon className="mr-1 h-3 w-3" />
-                            {req.status}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {req.level.replace('_', ' ')}
-                          </Badge>
-                        </div>
-                        <div className="mt-1 flex items-center gap-4 text-sm text-muted-foreground">
-                          <span>${req.amount.toLocaleString()}</span>
-                          {req.department && <span>{req.department}</span>}
-                          {req.vendor?.name && <span>{req.vendor.name}</span>}
-                          <span>{new Date(req.createdAt).toLocaleDateString()}</span>
-                        </div>
-                        {req.description && (
-                          <p className="mt-1 text-sm text-muted-foreground">{req.description}</p>
-                        )}
-                      </div>
+      <div className="flex gap-1 rounded-lg bg-slate-100 p-1 w-fit">
+        <button onClick={() => setTab('pending')} className={cn('rounded-md px-4 py-1.5 text-sm font-medium transition-colors', tab === 'pending' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
+          Pending <span className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">{pending.length}</span>
+        </button>
+        <button onClick={() => setTab('history')} className={cn('rounded-md px-4 py-1.5 text-sm font-medium transition-colors', tab === 'history' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
+          History
+        </button>
+      </div>
 
-                      {req.status === 'pending' && (
-                        <div className="ml-4 flex gap-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => rejectMutation.mutate(req.id)}
-                            disabled={rejectMutation.isPending}
-                          >
-                            <X className="mr-1 h-3 w-3" />
-                            Reject
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => approveMutation.mutate(req.id)}
-                            disabled={approveMutation.isPending}
-                          >
-                            <Check className="mr-1 h-3 w-3" />
-                            Approve
-                          </Button>
-                        </div>
-                      )}
-                      {req.approvedByName && (
-                        <div className="ml-4 text-right text-xs text-muted-foreground">
-                          <p>by {req.approvedByName}</p>
-                        </div>
-                      )}
-                    </div>
+      {isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-slate-300" /></div>
+      ) : (
+        <div className="space-y-3">
+          {(tab === 'pending' ? pending : history).map((req: any) => (
+            <div key={req.id} className="rounded-xl border border-slate-200 bg-white p-5 transition-shadow hover:shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-900">{req.title}</span>
+                    <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ring-1 ring-inset', statusStyles[req.status] || 'bg-slate-50 text-slate-600')}>
+                      {req.status}
+                    </span>
                   </div>
-                );
-              })}
+                  <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                    <span className="flex items-center gap-1">
+                      <User className="h-3 w-3" /> {req.requester?.name || 'Unknown'}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <DollarSign className="h-3 w-3" /> ${req.amount.toLocaleString()}
+                    </span>
+                    {req.department && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">{req.department}</span>}
+                    <span className="text-slate-400">{new Date(req.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                {req.status === 'pending' && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button
+                      size="sm"
+                      className="h-8 gap-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                      onClick={() => actionMutation.mutate({ id: req.id, action: 'approved', notes: '' })}
+                      disabled={actionMutation.isPending}
+                    >
+                      <Check className="h-3.5 w-3.5" /> Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 gap-1 rounded-lg border-slate-200 text-red-600 hover:bg-red-50"
+                      onClick={() => actionMutation.mutate({ id: req.id, action: 'rejected', notes: '' })}
+                      disabled={actionMutation.isPending}
+                    >
+                      <X className="h-3.5 w-3.5" /> Reject
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {(tab === 'pending' ? pending : history).length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <CheckSquare className="mb-3 h-10 w-10 text-slate-300" />
+              <p className="text-sm text-slate-500">No {tab === 'pending' ? 'pending' : ''} approvals.</p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
 
-      <NewApprovalDialog open={newOpen} onOpenChange={setNewOpen} />
+      <NewApprovalDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
   );
 }

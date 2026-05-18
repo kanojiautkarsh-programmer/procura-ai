@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useUser } from '@clerk/nextjs';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +26,8 @@ interface NewApprovalDialogProps {
 }
 
 export function NewApprovalDialog({ open, onOpenChange }: NewApprovalDialogProps) {
+  const { user } = useUser();
+  const orgId = user?.organizationMemberships?.[0]?.id || null;
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [department, setDepartment] = useState('');
@@ -49,8 +52,8 @@ export function NewApprovalDialog({ open, onOpenChange }: NewApprovalDialogProps
       amount: parseFloat(amount),
       department: department || undefined,
       description: description || undefined,
-      organizationId: 'org_demo',
-      requestedById: 'user_demo',
+      organizationId: orgId,
+      requestedById: user?.id,
     });
   };
 

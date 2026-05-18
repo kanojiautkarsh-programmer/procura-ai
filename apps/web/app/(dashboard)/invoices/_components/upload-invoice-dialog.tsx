@@ -50,9 +50,7 @@ export function UploadInvoiceDialog({ open, onOpenChange }: UploadInvoiceDialogP
     setUploading(true);
 
     const formData = new FormData();
-    files.forEach((f) => formData.append('files', f));
-    if (vendor) formData.append('vendor', vendor);
-    if (category) formData.append('category', category);
+    formData.append('file', files[0]);
 
     try {
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/invoices/upload`, {

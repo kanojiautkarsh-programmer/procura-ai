@@ -1,20 +1,40 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useUser } from '@clerk/nextjs';
 import { api } from '@/lib/api';
 import {
   Card, CardContent, CardHeader, CardTitle,
   Button, Badge, Input, Avatar, AvatarFallback,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@procura/ui';
-import { Plus, Search, Building2, Star, TrendingUp } from 'lucide-react';
+import { Plus, Search, Building2, Star, Loader2, X } from 'lucide-react';
 
 export default function VendorsPage() {
+  const { user } = useUser();
+  const orgId = user?.organizationMemberships?.[0]?.id || null;
   const [search, setSearch] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('software');
+  const [contactEmail, setContactEmail] = useState('');
+  const [website, setWebsite] = useState('');
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['vendors'],
-    queryFn: () => api.get<any>('/vendors', { organizationId: 'org_demo', limit: 50 }),
+    queryKey: ['vendors', orgId],
+    queryFn: () => api.get('/vendors', { organizationId: orgId || '', limit: 50 }),
+    enabled: !!orgId,
+  });
+
+  const addMutation = useMutation({
+    mutationFn: (vendorData: any) => api.post('/vendors', vendorData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendors'] });
+      setDialogOpen(false);
+      setName(''); setCategory('software'); setContactEmail(''); setWebsite('');
+    },
   });
 
   const vendors = data?.data ?? [];
@@ -30,7 +50,7 @@ export default function VendorsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Vendors</h1>
           <p className="text-muted-foreground">Manage vendor relationships, performance, and contracts.</p>
         </div>
-        <Button>
+        <Button onClick={() => setDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Add Vendor
         </Button>
@@ -47,9 +67,7 @@ export default function VendorsPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-          Loading vendors...
-        </div>
+        <div className="flex h-40 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-slate-300" /></div>
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -58,7 +76,7 @@ export default function VendorsPage() {
             <p className="mb-4 text-sm text-muted-foreground">
               Add vendors to track contracts, invoices, and subscriptions.
             </p>
-            <Button>
+            <Button onClick={() => setDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Add Vendor
             </Button>
@@ -123,6 +141,44 @@ export default function VendorsPage() {
           })}
         </div>
       )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Vendor</DialogTitle>
+            <DialogDescription>Add a new vendor to your procurement directory.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">Name *</label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Acme Corp" />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Category</label>
+              <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm" value={category} onChange={(e) => setCategory(e.target.value)}>
+                {['software', 'hardware', 'professional_services', 'marketing', 'office_supplies', 'travel', 'utilities', 'insurance', 'other'].map((c) => (
+                  <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Contact Email</label>
+              <Input value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="vendor@example.com" type="email" />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Website</label>
+              <Input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://example.com" />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => addMutation.mutate({ name, category, contactEmail: contactEmail || undefined, website: website || undefined, organizationId: orgId })} disabled={!name || addMutation.isPending}>
+              {addMutation.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+              Add Vendor
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

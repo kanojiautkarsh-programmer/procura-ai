@@ -1,5 +1,6 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { Webhook } from 'svix';
 
 interface WebhookHeaders {
   svixId: string;
@@ -10,10 +11,31 @@ interface WebhookHeaders {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly svixSecret: string;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {
+    this.svixSecret = process.env.CLERK_WEBHOOK_SECRET || '';
+    if (!this.svixSecret) {
+      this.logger.warn('CLERK_WEBHOOK_SECRET is not configured. Webhook verification disabled.');
+    }
+  }
 
-  async handleWebhook(payload: any, headers: WebhookHeaders) {
+  async handleWebhook(payload: any, headers: WebhookHeaders, rawBody?: string) {
+    // Verify webhook signature using Svix
+    if (this.svixSecret && rawBody) {
+      try {
+        const wh = new Webhook(this.svixSecret);
+        wh.verify(rawBody, {
+          'svix-id': headers.svixId,
+          'svix-timestamp': headers.svixTimestamp,
+          'svix-signature': headers.svixSignature,
+        });
+      } catch (err) {
+        this.logger.error(`Webhook signature verification failed: ${err}`);
+        throw new UnauthorizedException('Invalid webhook signature');
+      }
+    }
+
     const event = payload?.type;
     const data = payload?.data;
 
@@ -134,7 +156,12 @@ export class AuthService {
     this.logger.log(`Organization ${clerkOrgId} deleted in Clerk`);
   }
 
-  async getCurrentUser() {
-    return { message: 'Pending Clerk JWT integration' };
+  async getCurrentUser(clerkId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { clerkId },
+      include: { organization: true },
+    });
+    if (!user) throw new UnauthorizedException('User not found');
+    return user;
   }
 }

@@ -18,48 +18,70 @@ export class ApprovalsService {
       this.prisma.approvalRequest.findMany({
         where,
         include: { requester: true, vendor: true },
+        orderBy: { createdAt: 'desc' },
         skip: (options.page - 1) * options.limit,
         take: options.limit,
-        orderBy: { createdAt: 'desc' },
       }),
       this.prisma.approvalRequest.count({ where }),
     ]);
-
-    return {
-      data,
-      total,
-      page: options.page,
-      limit: options.limit,
-      totalPages: Math.ceil(total / options.limit),
-    };
+    return { data, total, page: options.page, limit: options.limit, totalPages: Math.ceil(total / options.limit) };
   }
 
-  async findOne(id: string) {
-    const approval = await this.prisma.approvalRequest.findUnique({
-      where: { id },
+  async findOne(id: string, organizationId?: string) {
+    const where: Record<string, string> = { id };
+    if (organizationId) where.organizationId = organizationId;
+    const approval = await this.prisma.approvalRequest.findFirst({
+      where,
       include: { requester: true, approver: true, vendor: true },
     });
     if (!approval) throw new NotFoundException('Approval request not found');
     return approval;
   }
 
-  async create(data: unknown) {
-    return this.prisma.approvalRequest.create({ data: data as any });
-  }
-
-  async takeAction(id: string, action: { status: 'approved' | 'rejected'; notes?: string }) {
-    const request = await this.findOne(id);
-    if (request.status !== 'pending') {
-      throw new Error('Approval request is not pending');
-    }
-
-    return this.prisma.approvalRequest.update({
-      where: { id },
+  async create(data: {
+    title: string;
+    amount: number;
+    requestedById: string;
+    organizationId: string;
+    description?: string;
+    currency?: string;
+    department?: string;
+    vendorId?: string;
+    notes?: string;
+  }) {
+    return this.prisma.approvalRequest.create({
       data: {
-        status: action.status,
-        // TODO: set approvedById from auth context
-        notes: action.notes,
+        title: data.title,
+        amount: data.amount,
+        requestedById: data.requestedById,
+        organizationId: data.organizationId,
+        description: data.description,
+        currency: data.currency ?? 'USD',
+        department: data.department,
+        vendorId: data.vendorId,
+        notes: data.notes,
+        status: 'pending',
+        level: 'level_1',
       },
     });
+  }
+
+  async approve(
+    id: string,
+    approvedById: string,
+    action: 'approved' | 'rejected' | 'escalated',
+    notes?: string,
+    organizationId?: string,
+  ) {
+    const approval = await this.findOne(id, organizationId);
+    return this.prisma.approvalRequest.update({
+      where: { id },
+      data: { status: action as any, approvedById, notes },
+    });
+  }
+
+  async remove(id: string, organizationId?: string) {
+    await this.findOne(id, organizationId);
+    return this.prisma.approvalRequest.delete({ where: { id } });
   }
 }

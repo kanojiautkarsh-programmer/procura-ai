@@ -22,7 +22,7 @@ export class ApiClient {
     return res.json();
   }
 
-  get<T>(path: string, params?: Record<string, string | number | undefined>) {
+  get<T = any>(path: string, params?: Record<string, string | number | undefined>) {
     const searchParams = new URLSearchParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -33,21 +33,21 @@ export class ApiClient {
     return this.request<T>(`${path}${queryString ? `?${queryString}` : ''}`);
   }
 
-  post<T>(path: string, data?: unknown) {
+  post<T = any>(path: string, data?: unknown) {
     return this.request<T>(path, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
     });
   }
 
-  patch<T>(path: string, data: unknown) {
+  patch<T = any>(path: string, data: unknown) {
     return this.request<T>(path, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
   }
 
-  delete<T>(path: string) {
+  delete<T = any>(path: string) {
     return this.request<T>(path, { method: 'DELETE' });
   }
 }

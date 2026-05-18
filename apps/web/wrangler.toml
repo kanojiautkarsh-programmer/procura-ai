@@ -1,0 +1,21 @@
+name = "procura-ai"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".vercel/output/static"
+
+# Environment variables for Pages
+[vars]
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = ""
+NEXT_PUBLIC_API_URL = "https://procura-api.onrender.com/api/v1"
+R2_PUBLIC_URL = "https://pub-<your-r2-bucket-id>.r2.dev"
+KV_CACHE_TTL = "60"
+
+# Bindings for R2
+[[r2_buckets]]
+binding = "INVOICE_BUCKET"
+bucket_name = "procura-invoices"
+
+# Bindings for KV
+[[kv_namespaces]]
+binding = "CACHE"
+id = ""

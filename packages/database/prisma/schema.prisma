@@ -96,6 +96,9 @@ model Organization {
   contracts     Contract[]
   approvals     ApprovalRequest[]
   categories    Category[]
+  apiKeys       TenantApiKey[]
+  notifications Notification[]
+  webhooks      WebhookEndpoint[]
 
   @@index([slug])
 }
@@ -332,4 +335,55 @@ model AiQueryLog {
 
   @@index([organizationId])
   @@index([createdAt])
+}
+
+model TenantApiKey {
+  id             String   @id @default(ulid())
+  organizationId String
+  provider       String   // openai, anthropic, google, azure_openai, custom
+  keyPrefix      String?  // First 8 chars to show in UI (sk-proj-...)
+  keyEncrypted   String   // AES-256-GCM encrypted
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider])
+  @@index([organizationId])
+}
+
+model Notification {
+  id             String   @id @default(ulid())
+  organizationId String
+  userId         String?
+  type           String   // approval_requested, renewal_upcoming, spend_threshold, invoice_flagged, system
+  title          String
+  body           String?
+  data           Json?
+  read           Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId])
+  @@index([organizationId, read])
+  @@index([createdAt])
+}
+
+model WebhookEndpoint {
+  id             String   @id @default(ulid())
+  organizationId String
+  url            String
+  secret         String?  // HMAC signing secret
+  events         String[] // Array of event types to subscribe to
+  isActive       Boolean  @default(true)
+  lastTriggeredAt DateTime?
+  failureCount   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }

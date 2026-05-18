@@ -1,0 +1,298 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  owner
+  admin
+  finance_manager
+  operations_manager
+  department_head
+  procurement_manager
+  it_admin
+  accounts_payable
+  member
+}
+
+enum VendorCategory {
+  software
+  hardware
+  professional_services
+  marketing
+  office_supplies
+  travel
+  utilities
+  insurance
+  other
+}
+
+enum BillingPeriod {
+  monthly
+  quarterly
+  semi_annual
+  annual
+  one_time
+}
+
+enum SubscriptionStatus {
+  active
+  trial
+  expired
+  cancelled
+  pending
+}
+
+enum InvoiceStatus {
+  pending
+  approved
+  paid
+  overdue
+  cancelled
+  flagged
+}
+
+enum ContractStatus {
+  active
+  expiring_soon
+  expired
+  cancelled
+  draft
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+  escalated
+}
+
+enum ApprovalLevel {
+  level_1
+  level_2
+  level_3
+}
+
+model Organization {
+  id        String   @id @default(ulid())
+  name      String
+  slug      String   @unique
+  logoUrl   String?
+  industry  String?
+  size      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  vendors       Vendor[]
+  subscriptions Subscription[]
+  invoices      Invoice[]
+  contracts     Contract[]
+  approvals     ApprovalRequest[]
+  categories    Category[]
+
+  @@index([slug])
+}
+
+model User {
+  id             String   @id @default(ulid())
+  clerkId        String   @unique
+  email          String   @unique
+  name           String
+  avatarUrl      String?
+  role           UserRole
+  organizationId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdInvoices Invoice[] @relation("CreatedInvoices")
+  createdContracts Contract[] @relation("CreatedContracts")
+  approvalRequests ApprovalRequest[] @relation("Requester")
+  approvedRequests ApprovalRequest[] @relation("Approver")
+
+  @@index([organizationId])
+  @@index([clerkId])
+  @@index([email])
+}
+
+model Vendor {
+  id             String        @id @default(ulid())
+  name           String
+  category       VendorCategory
+  contactName    String?
+  contactEmail   String?
+  contactPhone   String?
+  website        String?
+  notes          String?
+  rating         Int?
+  organizationId String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscriptions Subscription[]
+  invoices      Invoice[]
+  contracts     Contract[]
+  approvals     ApprovalRequest[]
+
+  @@index([organizationId])
+  @@index([name])
+}
+
+model Subscription {
+  id                String             @id @default(ulid())
+  name              String
+  vendorId          String
+  amount            Float
+  currency          String             @default("USD")
+  billingPeriod     BillingPeriod
+  status            SubscriptionStatus
+  startDate         DateTime
+  renewalDate       DateTime?
+  cancellationDate  DateTime?
+  licenseCount      Int                @default(0)
+  allocatedLicenses Int                @default(0)
+  lastUsedDate      DateTime?
+  department        String?
+  category          String?
+  notes             String?
+  organizationId    String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  vendor       Vendor       @relation(fields: [vendorId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([vendorId])
+  @@index([status])
+  @@index([renewalDate])
+}
+
+model Invoice {
+  id             String        @id @default(ulid())
+  vendorId       String
+  invoiceNumber  String?
+  amount         Float
+  taxAmount      Float         @default(0)
+  currency       String        @default("USD")
+  status         InvoiceStatus
+  issueDate      DateTime
+  dueDate        DateTime
+  paidDate       DateTime?
+  category       String?
+  description    String?
+  fileUrl        String?
+  ocrConfidence  Float?
+  isDuplicate    Boolean       @default(false)
+  duplicateOfId  String?
+  organizationId String
+  createdById    String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  vendor       Vendor       @relation(fields: [vendorId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("CreatedInvoices", fields: [createdById], references: [id])
+
+  @@index([organizationId])
+  @@index([vendorId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([issueDate])
+}
+
+model Contract {
+  id          String         @id @default(ulid())
+  vendorId    String
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  renewalDate DateTime?
+  autoRenew   Boolean        @default(false)
+  value       Float?
+  status      ContractStatus
+  fileUrl     String?
+  notes       String?
+  organizationId String
+  createdById String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  vendor       Vendor       @relation(fields: [vendorId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("CreatedContracts", fields: [createdById], references: [id])
+
+  @@index([organizationId])
+  @@index([vendorId])
+  @@index([status])
+  @@index([endDate])
+  @@index([renewalDate])
+}
+
+model ApprovalRequest {
+  id            String         @id @default(ulid())
+  title         String
+  description   String?
+  amount        Float
+  currency      String         @default("USD")
+  status        ApprovalStatus
+  level         ApprovalLevel
+  department    String?
+  requestedById String
+  approvedById  String?
+  vendorId      String?
+  notes         String?
+  organizationId String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  requester User   @relation("Requester", fields: [requestedById], references: [id])
+  approver  User?  @relation("Approver", fields: [approvedById], references: [id])
+  vendor    Vendor? @relation(fields: [vendorId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([level])
+  @@index([requestedById])
+  @@index([approvedById])
+}
+
+model Category {
+  id             String   @id @default(ulid())
+  name           String
+  type           String
+  organizationId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([name, organizationId])
+  @@index([organizationId])
+}
+
+model AuditLog {
+  id             String   @id @default(ulid())
+  action         String
+  entityType     String
+  entityId       String
+  changes        Json?
+  userId         String
+  organizationId String
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

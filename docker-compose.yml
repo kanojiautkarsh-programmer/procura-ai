@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: procura-postgres
     restart: unless-stopped
     ports:
@@ -30,6 +30,25 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  ai-service:
+    build:
+      context: ./apps/ai-service
+      dockerfile: Dockerfile
+    container_name: procura-ai
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DATABASE_URL: postgresql://procura:procura_dev@postgres:5432/procura
+      OCR_ENGINE: tesseract
+      LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./apps/ai-service:/app
 
 volumes:
   postgres_data:

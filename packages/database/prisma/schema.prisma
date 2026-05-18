@@ -5,6 +5,8 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Note: Requires pgvector extension. Run:
+  //   CREATE EXTENSION IF NOT EXISTS vector;
 }
 
 enum UserRole {
@@ -294,5 +296,40 @@ model AuditLog {
   @@index([organizationId])
   @@index([userId])
   @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model DocumentEmbedding {
+  id             String   @id @default(ulid())
+  content        String
+  metadata       Json?
+  source         String   // contract, policy, invoice, etc.
+  sourceId       String?
+  organizationId String
+  chunkIndex     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // vector field is managed via raw SQL (pgvector)
+  // Run: ALTER TABLE "DocumentEmbedding" ADD COLUMN embedding vector(1536);
+
+  @@index([organizationId])
+  @@index([source, sourceId])
+  @@index([chunkIndex])
+}
+
+model AiQueryLog {
+  id             String   @id @default(ulid())
+  query          String
+  response       String?
+  model          String?
+  tokensUsed     Int?
+  latencyMs      Int?
+  userId         String?
+  organizationId String
+  source         String?  // procurement_assistant, categorization, etc.
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
   @@index([createdAt])
 }

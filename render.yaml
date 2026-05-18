@@ -7,8 +7,9 @@ services:
     env: node
     region: oregon
     plan: free
-    buildCommand: npm install && npx prisma generate --schema=packages/database/prisma/schema.prisma && npm run build --filter=@procura/api
-    startCommand: node apps/api/dist/main.js
+    rootDir: apps/api
+    buildCommand: npm install && npx prisma generate --schema=../packages/database/prisma/schema.prisma && npm run build
+    startCommand: node dist/main.js
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV
@@ -16,28 +17,29 @@ services:
       - key: PORT
         value: "4000"
       - key: DATABASE_URL
-        sync: false
+        value: postgresql://postgres:Chitra%401009@db.aldxtesbexbrqlbpnqpq.supabase.co:5432/postgres
       - key: CLERK_SECRET_KEY
-        sync: false
+        value: sk_test_Goa4rk4v8k7s3PzdkvU2RpjkzTNOREBufZwUhrBxj0
       - key: CLERK_PUBLISHABLE_KEY
-        sync: false
+        value: pk_test_bmljZS1naG9zdC00My5jbGVyay5hY2NvdW50cy5kZXYk
       - key: CLERK_WEBHOOK_SECRET
         sync: false
       - key: BYOK_ENCRYPTION_KEY
-        sync: false
+        value: procura-dev-master-key-2026-32-bytes-hex
       - key: INTERNAL_API_TOKEN
-        sync: false
+        value: procura-internal-token-dev-2026
       - key: FRONTEND_URL
         value: https://procura-ai.pages.dev
       - key: CLERK_ISSUER
-        value: your-clerk-domain.clerk.accounts.dev
+        value: https://nice-ghost-43.clerk.accounts.dev
 
   - type: web
     name: procura-ai-service
     env: python
     region: oregon
     plan: free
-    buildCommand: pip install -r apps/ai-service/requirements.txt
+    rootDir: apps/ai-service
+    buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port 10000
     healthCheckPath: /api/v1/health
     envVars:
@@ -48,8 +50,8 @@ services:
       - key: API_KEY
         sync: false
       - key: INTERNAL_API_TOKEN
-        sync: false
+        value: procura-internal-token-dev-2026
       - key: DATABASE_URL
-        sync: false
+        value: postgresql://postgres:Chitra%401009@db.aldxtesbexbrqlbpnqpq.supabase.co:5432/postgres
       - key: OPENAI_API_KEY
         sync: false

@@ -9,6 +9,9 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
 import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { RenewalsModule } from './modules/renewals/renewals.module';
 import { VendorsModule } from './modules/vendors/vendors.module';
+import { AssistantModule } from './modules/assistant/assistant.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { ForecastingModule } from './modules/forecasting/forecasting.module';
 
 import { PrismaModule } from './common/prisma/prisma.module';
 import { QueueModule } from './common/queue/queue.module';
@@ -35,6 +38,9 @@ import { StorageModule } from './common/storage/storage.module';
     ApprovalsModule,
     RenewalsModule,
     VendorsModule,
+    AssistantModule,
+    IntegrationsModule,
+    ForecastingModule,
   ],
 })
 export class AppModule {}

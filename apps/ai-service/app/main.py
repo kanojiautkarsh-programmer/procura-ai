@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import ocr, categorize, rag, spend, health
+from app.api import ocr, categorize, rag, spend, forecasting, health
 
 app = FastAPI(
     title="Procura AI Service",
@@ -22,3 +22,4 @@ app.include_router(ocr.router, prefix="/api/v1/ocr", tags=["ocr"])
 app.include_router(categorize.router, prefix="/api/v1/categorize", tags=["categorize"])
 app.include_router(rag.router, prefix="/api/v1/rag", tags=["rag"])
 app.include_router(spend.router, prefix="/api/v1/spend", tags=["spend"])
+app.include_router(forecasting.router, prefix="/api/v1/forecast", tags=["forecast"])

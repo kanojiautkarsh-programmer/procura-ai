@@ -10,6 +10,7 @@ import {
   CheckSquare,
   Bell,
   BarChart3,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@procura/ui';
 
@@ -20,6 +21,7 @@ const navItems = [
   { href: '/vendors', label: 'Vendors', icon: Building2 },
   { href: '/approvals', label: 'Approvals', icon: CheckSquare },
   { href: '/renewals', label: 'Renewals', icon: Bell },
+  { href: '/assistant', label: 'AI Assistant', icon: Sparkles },
   { href: '/reports', label: 'Reports', icon: BarChart3 },
 ];
 
